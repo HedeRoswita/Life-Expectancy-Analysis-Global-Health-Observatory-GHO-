@@ -1,0 +1,593 @@
+---
+title: "Life Expectancy Analysis"
+author: "Roswita Hede"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(dplyr)
+library(ggplot2)
+```
+```{r}
+## plotting options
+set_plot_dimensions <- function(width_choice , height_choice) {
+options(repr.plot.width=width_choice, repr.plot.height=height_choice)
+}
+```
+
+## 1. Data Preparation
+```{r}
+
+df<- read.csv("Life Expectancy Data.csv")
+head(df)
+```
+```{r}
+#remove unnecassary column
+df<-subset(df, select = -c(Country, Year))
+```
+
+```{r}
+#identify missing values on dataset
+missing.rows = dim(df)[1] -  dim(na.omit(df))[1]
+sprintf("Dataset size: [%s]", toString(dim(df)))
+sprintf("Missing rows: %s (%s%%)", missing.rows, round((missing.rows*100)/dim(df)[1], 2))
+
+missings_df <- data.frame(type=c("missing", "non-missing") ,count = c(missing.rows,  dim(na.omit(df))[1]))
+
+missings_df
+set_plot_dimensions(6,4)
+ggplot(missings_df, aes(fill=type, y="", x=count)) + 
+    geom_bar(position="stack", stat="identity")+
+    ggtitle("Missing vs Non-missing row counts") +
+    xlab("Missing count") + ylab("") +
+    theme(text = element_text(size = 12))+
+    scale_fill_brewer(palette="Set2")
+
+```
+
+
+Based on the plot above, it can be seen that 43.87% data contains missing values.
+```{r}
+missing_counts <- data.frame(feature = factor(names(df)),
+                    counts=sapply(df, function(x) sum(is.na(x))))
+set_plot_dimensions(16,8)
+ggplot(missing_counts,
+       aes(x=reorder(feature, -counts), y=counts, fill=counts)) +
+                                  geom_bar(stat="identity") +
+                                  ggtitle("Number of Missing Values Based on Variable") +
+                                  xlab("Feature") + ylab("Missing count") +
+                                  theme(axis.text.x=element_text(angle=20, hjust=1))+
+                                  theme(text = element_text(size = 12))+
+                                  scale_fill_continuous(trans = 'reverse')
+```
+
+Based on the graph above, the variables with the most missing values are population, hepatitis B, and GDP. Since these variables have more than 40% missing values, we will use imputation to handle the missing values.
+
+
+```{r}
+#Checking outliers
+set_plot_dimensions(20,10)
+par(mfrow=c(2,4))
+boxplot(df$Life.expectancy,
+        ylab = "Life Expectancy",
+        main = "Boxplot of Life Expectancy",
+        col= "#FF6666",
+        outcol="#FF6666")
+boxplot(df$Adult.Mortality,
+        ylab = "Adult Mortality",
+        main = "Boxplot of Adult Mortality",
+        col= "#FF6666",
+        outcol="#FF6666")
+boxplot(df$infant.deaths,
+        ylab = "infant.deaths",
+        main = "Boxplot of infant.deaths",
+        col= "#008080",
+        outcol="#008080")
+boxplot(df$Alcohol,
+        ylab = "Alcohol",
+        main = "Boxplot of Alcohol",
+        col= "#008080",
+        outcol="#008080")
+boxplot(df$Hepatitis.B,
+        ylab = "Hepatitis B",
+        main = "Boxplot of Hepatitis B",
+        col= "#FF6666",
+        outcol="#FF6666")
+boxplot(df$BMI,
+        ylab = "BMI",
+        main = "Boxplot of BMI",
+        col= "#008080",
+        outcol="#008080")
+boxplot(df$Measles,
+        ylab = "Measles",
+        main = "Boxplot of Measles",
+        col= "#FF6666",
+        outcol="#FF6666")
+boxplot(df$under.five.deaths,
+        ylab = "under.five.deaths",
+        main = "Boxplot of under.five.deaths",
+        col= "#008080",
+        outcol="#008080")
+boxplot(df$Polio,
+        ylab = "Polio",
+        main = "Boxplot of Polio",
+        col= "#FF6666",
+        outcol="#FF6666")
+boxplot(df$percentage.expenditure,
+        ylab = "percentage.expenditure",
+        main = "Boxplot of percentage.expenditure",
+        col= "#008080",
+        outcol="#008080")
+boxplot(df$Total.expenditure,
+        ylab = "Total Expenditure",
+        main = "Boxplot of Total Expenditure",
+        col= "#FF6666",
+        outcol="#FF6666")
+boxplot(df$Diphtheria,
+        ylab = "Diphteria",
+        main = "Boxplot of Diphteria",
+        col= "#FF6666",
+        outcol="#FF6666")
+boxplot(df$GDP,
+        ylab = "GDP",
+        main = "Boxplot of GDP",
+        col= "#FF6666",
+        outcol="#FF6666")
+boxplot(df$Population,
+        ylab = "Population",
+        main = "Boxplot of Population",
+        col= "#FF6666",
+        outcol="#FF6666")
+boxplot(df$thinness..1.19.years,
+        ylab = "Thinness 1-19 years",
+        main = "Boxplot of Thinness for 1-19 years old",
+        col= "#FF6666",
+        outcol="#FF6666")
+boxplot(df$thinness.5.9.years,
+        ylab = "Thinness 5-9 years",
+        main = "Boxplot of Thinness for 5-9 years old",
+        col= "#FF6666",
+        outcol="#FF6666")
+boxplot(df$Income.composition.of.resources,
+        ylab = "Income Composition",
+        main = "Boxplot of Income Composition",
+        col= "#008080",
+        outcol="#008080")
+boxplot(df$Schooling,
+        ylab = "Schooling",
+        main = "Boxplot of Schooling",
+        col= "#FF6666",
+        outcol="#FF6666")
+```
+
+```{r}
+library(ggpubr)
+par(mfrow=c(2,4)) 
+#distribution of life expectancy
+ggdensity(df, x = "Life.expectancy", fill = "lightgray", title = "Life.expectancy") +
+  scale_x_continuous() +
+  stat_overlay_normal_density(color = "red", linetype = "dashed")
+ggdensity(df, x = "Adult.Mortality", fill = "lightgray", title = "Adult.Mortality") +
+  scale_x_continuous() +
+  stat_overlay_normal_density(color = "red", linetype = "dashed")
+ggdensity(df, x = "infant.deaths", fill = "lightgray", title = "infant.deaths") +
+  scale_x_continuous() +
+  stat_overlay_normal_density(color = "red", linetype = "dashed")
+ggdensity(df, x = "Alcohol", fill = "lightgray", title = "Alcohol") +
+  scale_x_continuous() +
+  stat_overlay_normal_density(color = "red", linetype = "dashed")
+ggdensity(df, x = "percentage.expenditure", fill = "lightgray", title = "percentage.expenditure") +
+  scale_x_continuous() +
+  stat_overlay_normal_density(color = "red", linetype = "dashed")
+ggdensity(df, x = "Hepatitis.B", fill = "lightgray", title = "Hepatitis.B") +
+  scale_x_continuous() +
+  stat_overlay_normal_density(color = "red", linetype = "dashed")
+ggdensity(df, x = "Measles", fill = "lightgray", title = "Measles") +
+  scale_x_continuous() +
+  stat_overlay_normal_density(color = "red", linetype = "dashed")
+ggdensity(df, x = "BMI", fill = "lightgray", title = "BMI") +
+  scale_x_continuous() +
+  stat_overlay_normal_density(color = "red", linetype = "dashed")
+
+ggdensity(df, x = "under.five.deaths", fill = "lightgray", title = "under.five.deaths") +
+  scale_x_continuous() +
+  stat_overlay_normal_density(color = "red", linetype = "dashed")
+
+ggdensity(df, x = "Polio", fill = "lightgray", title = "Polio") +
+  scale_x_continuous() +
+  stat_overlay_normal_density(color = "red", linetype = "dashed")
+
+ggdensity(df, x = "Diphtheria", fill = "lightgray", title = "Diphtheria") +
+  scale_x_continuous() +
+  stat_overlay_normal_density(color = "red", linetype = "dashed")
+
+ggdensity(df, x = "HIV.AIDS", fill = "lightgray", title = "HIV.AIDS") +
+  scale_x_continuous() +
+  stat_overlay_normal_density(color = "red", linetype = "dashed")
+
+ggdensity(df, x = "GDP", fill = "lightgray", title = "GDP") +
+  scale_x_continuous() +
+  stat_overlay_normal_density(color = "red", linetype = "dashed")
+
+ggdensity(df, x = "Population", fill = "lightgray", title = "Population") +
+  scale_x_continuous() +
+  stat_overlay_normal_density(color = "red", linetype = "dashed")
+
+ggdensity(df, x = "thinness..1.19.years", fill = "lightgray", title = "thinness..1.19.years") +
+  scale_x_continuous() +
+  stat_overlay_normal_density(color = "red", linetype = "dashed")
+
+ggdensity(df, x = "thinness.5.9.years", fill = "lightgray", title = "thinness.5.9.years") +
+  scale_x_continuous() +
+  stat_overlay_normal_density(color = "red", linetype = "dashed")
+
+ggdensity(df, x = "Income.composition.of.resources", fill = "lightgray", title = "Income.composition.of.resources") +
+  scale_x_continuous() +
+  stat_overlay_normal_density(color = "red", linetype = "dashed")
+
+ggdensity(df, x = "Total.expenditure", fill = "lightgray", title = "Total Expenditure") +
+  scale_x_continuous() +
+  stat_overlay_normal_density(color = "red", linetype = "dashed")
+# schooling
+ggdensity(df, x = "Schooling", fill = "lightgray", title = "Schooling") +
+  scale_x_continuous() +
+  stat_overlay_normal_density(color = "red", linetype = "dashed")
+```
+
+
+Based on the boxplots and density plots above, most variables have outliers and are skewed. Therefore, we will use the median to impute missing values.
+
+```{r}
+library(moments)
+sprintf("Skewness Life.expectancy: [%s]", toString(skewness(df$Life.expectancy, na.rm = TRUE)))
+sprintf("Skewness Adult.Mortality: [%s]", toString(skewness(df$Adult.Mortality, na.rm = TRUE)))
+sprintf("Skewness Alcohol: [%s]", toString(skewness(df$Alcohol, na.rm = TRUE)))
+sprintf("Skewness percentage.expenditure: [%s]", toString(skewness(df$percentage.expenditure, na.rm = TRUE)))
+sprintf("Skewness Hepatitis.B: [%s]", toString(skewness(df$Hepatitis.B, na.rm = TRUE)))
+sprintf("Skewness Measles: [%s]", toString(skewness(df$Measles, na.rm = TRUE)))
+sprintf("Skewness BMI: [%s]", toString(skewness(df$BMI, na.rm = TRUE)))
+sprintf("Skewness under.five.deaths: [%s]", toString(skewness(df$under.five.deaths, na.rm = TRUE)))
+sprintf("Skewness Polio: [%s]", toString(skewness(df$Polio, na.rm = TRUE)))
+sprintf("Skewness Population: [%s]", toString(skewness(df$Population, na.rm = TRUE)))
+sprintf("Skewness Diphtheria: [%s]", toString(skewness(df$Diphtheria, na.rm = TRUE)))
+sprintf("Skewness HIV.AIDS: [%s]", toString(skewness(df$HIV.AIDS, na.rm = TRUE)))
+sprintf("Skewness thinness.5.9.years: [%s]", toString(skewness(df$thinness.5.9.years, na.rm = TRUE)))
+sprintf("Skewness Income.composition.of.resources: [%s]", toString(skewness(df$Income.composition.of.resources, na.rm = TRUE)))
+
+```
+
+# Handling Null values
+```{r}
+Life.expectancy_m <- median(df$Life.expectancy,  na.rm = TRUE)
+Adult.Mortality_m <- median(df$Adult.Mortality,  na.rm = TRUE)
+infant.deaths_m <- median(df$infant.deaths,  na.rm = TRUE)
+Hepatitis.B_m <- median(df$Hepatitis.B,  na.rm = TRUE)
+percentage.expenditure_m<-median(df$percentage.expenditure,  na.rm = TRUE)
+Measles_m<-median(df$Measles,  na.rm = TRUE)
+under.five.deaths_m<-median(df$under.five.deaths,  na.rm = TRUE)
+HIV.AIDS_m<-median(df$HIV.AIDS,  na.rm = TRUE)
+Polio_m <- median(df$Polio,  na.rm = TRUE)
+Diphtheria_m <- median(df$Diphtheria,  na.rm = TRUE)
+Total.expenditure_m <- median(df$Total.expenditure,  na.rm = TRUE)
+GDP_m <- median(df$GDP,  na.rm = TRUE)
+Population_m <- median(df$Population,  na.rm = TRUE)
+thinness..1.19.years_m <- median(df$thinness..1.19.years,  na.rm = TRUE)
+thinness.5.9.years_m <- median(df$thinness.5.9.years,  na.rm = TRUE)
+Schooling_m <- median(df$Schooling,  na.rm = TRUE)
+Alcohol_m <- median(df$Alcohol,  na.rm = TRUE)
+BMI_m <- median(df$BMI,  na.rm = TRUE)
+Income.composition.of.resources_m <- median(df$Income.composition.of.resources,  na.rm = TRUE)
+```
+
+
+```{r}
+#Replace the NA with median
+df$Life.expectancy[is.na(df$Life.expectancy)] <- Life.expectancy_m
+df$Adult.Mortality[is.na(df$Adult.Mortality)] <- Adult.Mortality_m
+df$infant.deaths[is.na(df$infant.deaths)] <- infant.deaths_m
+df$percentage.expenditure[is.na(df$percentage.expenditure)] <- percentage.expenditure_m
+df$Measles[is.na(df$Measles)] <- Measles_m
+df$under.five.deaths[is.na(df$under.five.deaths)] <- under.five.deaths_m
+df$HIV.AIDS[is.na(df$HIV.AIDS)] <- HIV.AIDS_m
+df$Hepatitis.B[is.na(df$Hepatitis.B)] <- Hepatitis.B_m
+df$Polio[is.na(df$Polio)] <- Polio_m
+df$Diphtheria[is.na(df$Diphtheria)] <- Diphtheria_m
+df$Total.expenditure[is.na(df$Total.expenditure)] <- Total.expenditure_m
+df$GDP[is.na(df$GDP)] <- GDP_m
+df$Population[is.na(df$Population)] <- Population_m
+df$thinness..1.19.years[is.na(df$thinness..1.19.years)] <- thinness..1.19.years_m
+df$thinness.5.9.years[is.na(df$thinness.5.9.years)] <- thinness.5.9.years_m
+df$Schooling[is.na(df$Schooling)] <- Schooling_m
+df$Alcohol[is.na(df$Alcohol)] <- Alcohol_m
+df$BMI[is.na(df$BMI)] <- BMI_m
+df$Income.composition.of.resources[is.na(df$Income.composition.of.resources)] <- Income.composition.of.resources_m
+```
+
+
+
+```{r}
+missing_count <- data.frame(feature = factor(names(df)),
+                    counts=sapply(df, function(x) sum(is.na(x))))
+missing_count
+```
+```{r}
+head(df)
+
+```
+
+```{r}
+library(ggcorrplot)
+
+set_plot_dimensions(40,35)
+corr <- round(cor(subset(df, select =-c(Status))),3)
+ggcorrplot(corr,type = "upper", lab = TRUE, outline.color = "black", lab_size = 1.5, 
+           legend.title ="Correlation")+ ggtitle("Correlation Matrix")+theme(text = element_text(size = 5))
+```
+
+Based on the correlation calculation, we can see that:
+
+1. under_five_deaths and infant_deaths have a high correlation, with a correlation coefficient of more than 0.8.
+2. GDP and total_expenditure have a high correlation, with a correlation coefficient of more than 0.8.
+3. thinness_5_9_years and thinness_5_9_years have a high correlation, with a correlation coefficient of more than 0.8.
+4. Schooling has a high correlation with Income_composition_of_resources and life_expectancy, with a correlation coefficient of more than 0.7.
+
+This suggests that there is a strong linear relationship between these variables.
+
+Since the correlation coefficients are all above 0.8, it is possible that there is collinearity between these variables. Collinearity is a statistical condition in which two or more predictor variables are highly correlated with each other. Collinearity can cause problems for statistical models, such as making it difficult to interpret the results of the model and increasing the risk of overfitting.
+
+# Collinearity
+
+```{r}
+library(car)
+mod.linear <- lm(Life.expectancy~ ., data = subset(df, select =-c(Status)))
+vifs <- data.frame(vif(mod.linear))
+
+set_plot_dimensions(16,8)
+ggplot(vifs, aes(y=vif.mod.linear., x=row.names(vifs))) + 
+    geom_bar(aes(fill=vif.mod.linear.>5),stat="identity")+
+    scale_y_continuous(trans = "sqrt",  breaks = c(5, 10, 50, 100))+
+    geom_hline(yintercept = 5, colour = "blue") + 
+    ggtitle("VIF per feature") +
+    xlab("Featurs") + ylab("VIF") +
+    theme(axis.text.x=element_text(angle=20, hjust=1))+
+    theme(text = element_text(size = 8))+
+    scale_fill_brewer(palette="Set1")
+```
+
+As expected, the variables GDP, infant.deaths, percentage.expenditure, thinness.5.9.years, thinness.5.9.years, and under.five.deaths have high VIF (more than 5). This means that these variables are highly correlated with each other, which can cause problems for machine learning algorithms.
+
+To address this issue, we will drop the variables infant.deaths, GDP, and thinness.5.9.years. This will reduce the collinearity in the data and improve the performance of the machine learning algorithm.
+
+```{r}
+#Omit infant.deaths, GDP and thinness..1.19.years
+df <- subset(df, select = -c(infant.deaths,GDP,thinness..1.19.years,Schooling,percentage.expenditure))
+
+```
+
+```{r}
+#Checking correlation again
+set_plot_dimensions(16,10)
+corr <- round(cor(subset(df, select =-c(Status))), 3)
+ggcorrplot(corr,type = "upper", lab = TRUE, outline.color = "black", lab_size = 1.5, legend.title = "Correlation")
+```
+
+```{r}
+#Check VIF again
+mod.linear <- lm(Life.expectancy~ ., data = subset(df, select =-c(Status)))
+vifs <- data.frame(vif(mod.linear))
+
+set_plot_dimensions(16,8)
+ggplot(vifs, aes(y=vif.mod.linear., x=row.names(vifs))) + 
+    geom_bar(aes(fill=vif.mod.linear.<5),stat="identity")+
+    scale_y_continuous(trans = "sqrt",  breaks = c(5, 10, 50, 100))+
+    geom_hline(yintercept = 5, colour = "red") + 
+    ggtitle("VIF per feature") +
+    xlab("Featurs") + ylab("VIF") +
+    theme(axis.text.x=element_text(angle=20, hjust=1))+
+    theme(text = element_text(size = 8))+
+    scale_fill_brewer(palette="Dark2")
+```
+
+It ca be seen that, the collinearity of all the variables are normal 
+
+#Transformation
+
+Some of the variables are skewed, while others are bimodal (except for schooling and total expenditure). We will perform a Box-Cox transformation to transform them into a normal distribution.
+
+```{r}
+df$Life.expectancy<- log(df$Life.expectancy)
+df$Adult.Mortality<- log(df$Adult.Mortality)
+df$Measles <- sqrt(max(df$Measles+1)- df$Measles)
+df$under.five.deaths <- sqrt(max(df$under.five.deaths+1)- df$under.five.deaths)
+df$Population<- log(df$Population)
+df$Diphtheria<- log(df$Diphtheria)
+df$HIV.AIDS<- log(df$HIV.AIDS)
+df$thinness.5.9.years<- log(df$thinness.5.9.years)
+df$Income.composition.of.resources<- sqrt(max(df$Income.composition.of.resources+1)-df$Income.composition.of.resources)
+
+df$Polio<- log(df$Polio)
+```
+
+```{r}
+head(df)
+```
+```{r}
+#Checking correlation again
+set_plot_dimensions(16,10)
+corr <- round(cor(subset(df, select =-c(Status))), 3)
+ggcorrplot(corr,type = "upper", lab = TRUE, outline.color = "black", lab_size = 1.5, legend.title = "Correlation")
+```
+
+```{r}
+sprintf("Skewness Life.expectancy: [%s]", toString(skewness(df$Life.expectancy, na.rm = TRUE)))
+sprintf("Skewness Adult.Mortality: [%s]", toString(skewness(df$Adult.Mortality, na.rm = TRUE)))
+sprintf("Skewness Alcohol: [%s]", toString(skewness(df$Alcohol, na.rm = TRUE)))
+sprintf("Skewness Hepatitis.B: [%s]", toString(skewness(df$Hepatitis.B, na.rm = TRUE)))
+sprintf("Skewness Measles: [%s]", toString(skewness(df$Measles, na.rm = TRUE)))
+sprintf("Skewness BMI: [%s]", toString(skewness(df$BMI, na.rm = TRUE)))
+sprintf("Skewness under.five.deaths: [%s]", toString(skewness(df$under.five.deaths, na.rm = TRUE)))
+sprintf("Skewness Polio: [%s]", toString(skewness(df$Polio, na.rm = TRUE)))
+sprintf("Skewness Population: [%s]", toString(skewness(df$Population, na.rm = TRUE)))
+sprintf("Skewness Diphtheria: [%s]", toString(skewness(df$Diphtheria, na.rm = TRUE)))
+sprintf("Skewness HIV.AIDS: [%s]", toString(skewness(df$HIV.AIDS, na.rm = TRUE)))
+sprintf("Skewness thinness.5.9.years: [%s]", toString(skewness(df$thinness.5.9.years, na.rm = TRUE)))
+
+
+```
+
+
+
+
+```{r}
+head(df)
+```
+
+```{r}
+# Calculate the number of NaN values in the data frame
+num_nan <- sum(is.nan(df$Income.composition.of.resources))
+
+# Print the number of NaN values
+print(num_nan)
+```
+```{r}
+#Scalling
+
+df$Life.expectancy<- scale(df$Life.expectancy, scale=TRUE, center = TRUE)
+df$Adult.Mortality<- scale(df$Adult.Mortality, scale=TRUE, center = TRUE)
+df$Hepatitis.B<- scale(df$Hepatitis.B, scale=TRUE, center = TRUE)
+df$Measles<- scale(df$Measles, scale=TRUE, center = TRUE)
+df$BMI<- scale(df$BMI, scale=TRUE, center = TRUE)
+df$under.five.deaths<- scale(df$under.five.deaths, scale=TRUE, center = TRUE)
+df$Polio<- scale(df$Polio, scale=TRUE, center = TRUE)
+df$Population<- scale(df$Population, scale=TRUE, center = TRUE)
+df$Diphtheria<- scale(df$Diphtheria, scale=TRUE, center = TRUE)
+df$thinness.5.9.years<- scale(df$Population, scale=TRUE, center = TRUE)
+df$Total.expenditure<- scale(df$Total.expenditure, scale=TRUE, center = TRUE)
+
+```
+
+
+
+#Feature Selection
+
+Feature selection is the process of selecting the most important features from a dataset for use in a machine learning model. There are many different feature selection methods, but two of the most common are backward and forward selection. This project will use backward and forward selection to select the most important features from the dataset for use in the machine learning model.
+
+
+
+```{r}
+library(leaps)
+regfit.bwd <- suppressWarnings(regsubsets(Life.expectancy~.,data=df,nvmax=16,method="backward"))
+bwd.summary <- summary(regfit.bwd)
+```
+```{r}
+regfit.fwd <- suppressWarnings(regsubsets(Life.expectancy~.,data=df,nvmax=16,method="forward"))
+fwd.summary <-summary(regfit.fwd)
+```
+```{r}
+v_names <- rownames(as.data.frame(coef(regfit.fwd,12)))
+coefs<- data.frame(v_names)
+coefs$fwd_coef_value <-  coef(regfit.fwd,12)
+coefs$bwd_coef_value <-  coef(regfit.bwd,12)
+
+set_plot_dimensions(18,4)
+ggplot(coefs,
+       aes(x=v_names, y=fwd_coef_value, fill=fwd_coef_value)) +
+                                  geom_bar(stat="identity") +
+                                  ggtitle("Features & coeffecients: [method Forward inclusion]") +
+                                  xlab("Feature") + ylab("Coef value") +
+                                  theme(axis.text.x=element_text(angle=20, hjust=1))+
+                                  theme(text = element_text(size = 8))
+ggplot(coefs,
+       aes(x=v_names, y=bwd_coef_value, fill=bwd_coef_value)) +
+                                  geom_bar(stat="identity") +
+                                  ggtitle("Feature & coeffecients: [method Backward elimination]") +
+                                  xlab("Feature") + ylab("Coef value") +
+                                  theme(axis.text.x=element_text(angle=20, hjust=1))+
+                                  theme(text = element_text(size = 8))
+```
+
+Based on the plot above choose the same 12 variables. In the next step we will perform linear regression on full model and on the 12 variables from feature selection.
+
+
+```{r}
+#Split train and test data
+
+sample <- sample(c(TRUE, FALSE), nrow(df), replace=TRUE, prob=c(0.70,0.30))
+train <- df[sample, ]
+x.test <-df[!sample, ]
+y.test <- df[!sample, ]$Life.expectancy
+```
+
+1. Linear Regression with all variables
+
+```{r}
+model1<- lm(Life.expectancy~., data = train)
+summary(model1)
+```
+
+
+```{r}
+library(Metrics)
+pred <- predict(model1, newdata=x.test)
+rmse_mod1=rmse(pred,y.test)
+cat("RMSE model 1: ", rmse_mod1)
+adj_rsqrd_mod1=summary(model1)$adj.r.squared
+cat("    Adj R Squared model 1: ",adj_rsqrd_mod1)
+par(mfrow=c(2,2))
+plot(model1)
+```
+
+
+
+```{r}
+df1 <- subset(df, select=c(Life.expectancy,Status, Adult.Mortality, 
+                                     Hepatitis.B, Polio, BMI, thinness.5.9.years, Measles,
+                                     Diphtheria,HIV.AIDS,
+                           Income.composition.of.resources, under.five.deaths))
+
+#Split train and test data
+
+sample <- sample(c(TRUE, FALSE), nrow(df1), replace=TRUE, prob=c(0.70,0.30))
+train1 <- df1[sample, ]
+x.test1 <-df1[!sample, ]
+y.test1 <- df1[!sample, ]$Life.expectancy
+```
+
+
+```{r}
+model2<- lm(Life.expectancy~., data = train1)
+summary(model2)
+```
+```{r}
+library(Metrics)
+pred <- predict(model2, newdata=x.test1)
+rmse_mod2=rmse(pred,y.test1)
+cat("RMSE model 2: ",rmse_mod2)
+adj_rsqrd_mod2=summary(model2)$adj.r.squared
+cat("    Adj R Squared model 2: ",  adj_rsqrd_mod2)
+par(mfrow=c(2,2))
+plot(model2)
+```
+```{r}
+# Create a list of vectors
+vector_list <- list(
+  Model = c("Model 1 (all Variables)", "Model 2 (11 variables)"),
+  RMSE = c(0.4466444, 0.4294861),
+  Adj_R_Squared = c(0.8111984, 0.8031346)
+)
+
+# Create a data frame from the list of vectors
+df <- data.frame(vector_list)
+
+# Print the data frame
+print(df)
+```
+
+
+We will choose Model 2 because it has a lower RMSE and a higher adjusted R-squared score, and it uses fewer variables. This means that Model 2 is more accurate and parsimonious than Model 1. Additionally, Model 2 has an accuracy of 80.3%, which is considered to be good.
